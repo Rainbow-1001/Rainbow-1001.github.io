@@ -1,0 +1,270 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>稻穀含水率預測器</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        .pagination {
+            display: flex;
+            justify-content: center;
+            margin-top: 10px;
+        }
+        .pagination button {
+            margin: 0 5px;
+            padding: 5px 10px;
+            background: #f3f4f6;
+            border: 1px solid #ddd;
+            cursor: pointer;
+            border-radius: 5px;
+        }
+        .pagination button.active {
+            background: #3b82f6;
+            color: white;
+            font-weight: bold;
+        }
+    </style>
+</head>
+<body class="bg-gray-100">
+    <div class="container mx-auto max-w-md p-4">
+        <div id="tabContainer">
+            <div class="flex mb-4">
+                <button id="predictorTab" class="flex-1 py-2 px-4 bg-blue-500 text-white font-bold rounded-l-lg">預測</button>
+                <button id="historyTab" class="flex-1 py-2 px-4 bg-gray-300 text-gray-700 font-bold rounded-r-lg">歷史記錄</button>
+            </div>
+
+            <div id="predictorContent" class="block">
+                <div class="bg-white shadow-md rounded-lg p-4">
+                    <h2 class="text-2xl font-bold mb-4">稻穀含水率預測器</h2>
+
+                    <div class="mb-4">
+                        <div id="imagePreview" class="h-48 bg-gray-100 rounded-lg mb-4 flex items-center justify-center">
+                            <svg xmlns="http://www.w3.org/2000/svg" class="h-12 w-12 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z" />
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 13a3 3 0 11-6 0 3 3 0 016 0z" />
+                            </svg>
+                        </div>
+                        <div class="flex justify-between">
+                            <label class="bg-blue-500 hover:bg-blue-600 text-white font-bold py-2 px-4 rounded cursor-pointer">
+                                上傳圖片
+                                <input type="file" id="imageUpload" class="hidden" accept="image/*">
+                            </label>
+                            <button id="predictButton" aria-label="預測含水率" tabindex="0" class="bg-green-500 hover:bg-green-600 text-white font-bold py-2 px-4 rounded" disabled>
+                                預測含水率
+                            </button>
+                        </div>
+                    </div>
+
+                    <div id="predictionResult" class="hidden mt-4 bg-gray-50 p-4 rounded-lg">
+                        <h3 class="text-lg font-semibold mb-2">預測結果</h3>
+                        <div class="flex items-center justify-between">
+                            <span class="text-2xl font-bold" id="moistureValue">-</span>
+                            <span id="recommendationText" class="text-sm"></span>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="bg-yellow-50 border-l-4 border-yellow-400 p-4 mt-4">
+                    <p class="text-yellow-700">提示：當預測含水率接近25%時，建議開始準備收割。這有助於減少烘乾所需的能源和碳排放。</p>
+                </div>
+            </div>
+
+            <div id="historyContent" class="hidden">
+                <div class="bg-white shadow-md rounded-lg p-4">
+                    <div class="flex justify-between items-center mb-4">
+                        <h2 class="text-xl font-bold">歷史記錄</h2>
+                        <button id="clearHistoryBtn" class="bg-red-500 hover:bg-red-600 text-white font-bold py-1 px-3 rounded text-sm">
+                            清除全部
+                        </button>
+                    </div>
+                    <div id="historyList" class="space-y-2 max-h-[400px] overflow-y-auto">
+                        <p class="text-center text-gray-500" id="emptyHistoryMessage">尚無歷史記錄</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        (function () {
+            const state = {
+                image: null,
+                history: [],
+                currentImage: null,
+            };
+
+            const translations = {
+                zh: {
+                    title: '稻穀含水率預測器',
+                    upload: '上傳圖片',
+                    predict: '預測含水率',
+                    history: '歷史記錄',
+                    clear: '清除全部',
+                    noHistory: '尚無歷史記錄',
+                },
+                en: {
+                    title: 'Rice Moisture Predictor',
+                    upload: 'Upload Image',
+                    predict: 'Predict Moisture',
+                    history: 'History',
+                    clear: 'Clear All',
+                    noHistory: 'No history yet',
+                },
+            };
+
+            function setLanguage(lang) {
+                document.title = translations[lang].title;
+                document.getElementById('predictButton').textContent = translations[lang].predict;
+                document.getElementById('clearHistoryBtn').textContent = translations[lang].clear;
+                document.getElementById('emptyHistoryMessage').textContent = translations[lang].noHistory;
+            }
+
+            async function fetchPrediction(imageData) {
+                return new Promise((resolve) => {
+                    setTimeout(() => {
+                        const moistureContent = (Math.random() * (30 - 15) + 15).toFixed(2);
+                        resolve({
+                            moistureContent,
+                            recommendation:
+                                moistureContent > 25 ? '建議等待再收割' : '適合開始收割',
+                        });
+                    }, 2000);
+                });
+            }
+
+            function initializeTabs() {
+                const predictorTab = document.getElementById('predictorTab');
+                const historyTab = document.getElementById('historyTab');
+                const predictorContent = document.getElementById('predictorContent');
+                const historyContent = document.getElementById('historyContent');
+
+                predictorTab.addEventListener('click', () => {
+                    predictorTab.classList.add('bg-blue-500', 'text-white');
+                    historyTab.classList.remove('bg-blue-500', 'text-white');
+                    predictorContent.classList.remove('hidden');
+                    historyContent.classList.add('hidden');
+                });
+
+                historyTab.addEventListener('click', () => {
+                    historyTab.classList.add('bg-blue-500', 'text-white');
+                    predictorTab.classList.remove('bg-blue-500', 'text-white');
+                    historyContent.classList.remove('hidden');
+                    predictorContent.classList.add('hidden');
+                    renderHistory();
+                });
+            }
+
+            function initializeImageUpload() {
+                const imageUpload = document.getElementById('imageUpload');
+                const imagePreview = document.getElementById('imagePreview');
+                const predictButton = document.getElementById('predictButton');
+
+                imageUpload.addEventListener('change', function (e) {
+                    const file = e.target.files[0];
+                    if (!file) {
+                        alert('未選擇文件');
+                        return;
+                    }
+                    if (!file.type.startsWith('image/')) {
+                        alert('請上傳有效的圖片文件');
+                        return;
+                    }
+                    if (file.size > 5 * 1024 * 1024) {
+                        alert('圖片文件太大，請選擇小於5MB的圖片');
+                        return;
+                    }
+                    const reader = new FileReader();
+                    reader.onload = function (event) {
+                        imagePreview.innerHTML = `<img src="${event.target.result}" class="h-full w-full object-cover rounded-lg">`;
+                        state.currentImage = event.target.result;
+                        predictButton.disabled = false;
+                    };
+                    reader.readAsDataURL(file);
+                });
+            }
+
+            async function initializePrediction() {
+                const predictButton = document.getElementById('predictButton');
+                const predictionResult = document.getElementById('predictionResult');
+                const moistureValue = document.getElementById('moistureValue');
+                const recommendationText = document.getElementById('recommendationText');
+
+                predictButton.addEventListener('click', async function () {
+                    try {
+                        predictButton.textContent = '預測中...';
+                        predictButton.disabled = true;
+                        const prediction = await fetchPrediction(state.currentImage);
+                        moistureValue.textContent = `${prediction.moistureContent}%`;
+                        recommendationText.textContent = prediction.recommendation;
+                        predictionResult.classList.remove('hidden');
+                    } catch (error) {
+                        alert('預測失敗，請稍後再試');
+                    } finally {
+                        predictButton.textContent = '預測含水率';
+                        predictButton.disabled = false;
+                    }
+                });
+            }
+
+            function renderHistory() {
+                const historyList = document.getElementById('historyList');
+                const savedHistory = JSON.parse(localStorage.getItem('riceHistory')) || [];
+                state.history = savedHistory;
+
+                historyList.innerHTML = savedHistory.length
+                    ? ''
+                    : '<p class="text-center text-gray-500">尚無歷史記錄</p>';
+
+                savedHistory.forEach(function (record) {
+                    const historyItem = document.createElement('div');
+                    historyItem.classList.add(
+                        'flex',
+                        'items-center',
+                        'bg-gray-50',
+                        'p-2',
+                        'rounded-lg'
+                    );
+                    historyItem.innerHTML = `
+                        <img src="${record.image}" class="w-16 h-16 object-cover rounded-md mr-4">
+                        <div class="flex-grow">
+                            <p>含水率: ${record.moistureContent}%</p>
+                            <p class="text-sm text-gray-500">${record.date}</p>
+                            <p class="text-sm ${
+                                record.recommendation.includes('等待')
+                                    ? 'text-yellow-600'
+                                    : 'text-green-600'
+                            }">
+                                ${record.recommendation}
+                            </p>
+                        </div>
+                    `;
+                    historyList.appendChild(historyItem);
+                });
+            }
+
+            function initializeHistoryManagement() {
+                const clearHistoryBtn = document.getElementById('clearHistoryBtn');
+
+                clearHistoryBtn.addEventListener('click', function () {
+                    state.history = [];
+                    localStorage.removeItem('riceHistory');
+                    renderHistory();
+                });
+            }
+
+            function initialize() {
+                document.addEventListener('DOMContentLoaded', function () {
+                    setLanguage('zh');
+                    initializeTabs();
+                    initializeImageUpload();
+                    initializePrediction();
+                    initializeHistoryManagement();
+                });
+            }
+
+            initialize();
+        })();
+    </script>
+</body>
+</html>
